@@ -1,0 +1,749 @@
+%% PLOT sorted ROI matrices with separated trial types DFF
+%X = sData.stats.sessionAvs.plotXAxis;
+
+% sort ROIs
+
+    % posTunCurves = sData.imdata(fov).avBinnedRois.avBinnedRoisDeconv{1};    
+    % sortedROIs = vr.sortROIs(posTunCurves,subsetOfInterest,smoothSpan);    
+    
+    % Down sample control trials 
+%    n = sData.trials.trialTypesMeta(1).nTrials;
+%    k = sData.trials.trialTypesMeta(2).nTrials; % to randomly select the same number of trials   
+%    ctrlTrials = sData.trials.trialTypesMeta(1).trials(randperm(n,k)); %returns a row vector containing k unique integers selected randomly from 1 to n inclusive
+%    complementerTrials = setdiff(sData.trials.trialTypesMeta(1).trials,ctrlTrials);    
+    
+function remapPlotsRoiMatricesLong(sData,sDataDir) 
+
+
+for fov = 1:1:length(sData.imdata)
+
+%% PLOT Trial Types DFF
+
+% subsetOfInterest = 1:1:nROIs;
+    
+    % active ROIs in any of the trial types
+%    subsetOfInterest = intersect(union(find(activeTrialFractionInBlock > threshold),union(find(activeTrialFractionHB > threshold),find(activeTrialFractionOTP > threshold))),...
+%        union(find(peakFreqsCtrl > freqThreshold),union(find(peakFreqsHB > freqThreshold),find(peakFreqsOTP > freqThreshold))));
+
+subsetOfInterest = sData.imdata(fov).activeROIs;
+
+% Place cell in either block:
+%subsetOfInterest = union(union(sData.imdata(fov).placeCells(1).placeCells,sData.imdata(fov).placeCells(2).placeCells),...
+%    union(sData.imdata(fov).placeCells(3).placeCells,sData.imdata(fov).placeCells(4).placeCells));
+
+
+%subsetOfInterest = sData.imdata(fov).inactiveROIs;
+%subsetOfInterest = sData.imdata(fov).tunedROIs;
+%subsetOfInterest = sData.imdata(fov).untunedROIs;
+
+%subsetOfInterest = intersect(inactiveROIs,untunedROIs);    
+%subsetOfInterest = intersect(inactiveROIs,tunedROIs);
+%subsetOfInterest = intersect(activeROIs,tunedROIs);
+%subsetOfInterest = intersect(activeROIs,untunedROIs);
+
+
+for sortMat = 1:2
+    
+
+    
+    
+    % Select context to align here:
+    trials = sData.trials.contextsMeta(sortMat).trials;
+
+    oddTrials = trials(1:2:numel(trials));
+    evenTrials = trials(2:2:numel(trials));
+    
+    
+    data = normalize(permute(sData.imdata(fov).binnedRoisDff,[3 2 1]),2);
+    % data = permute(sData.imdata(fov).binnedRoisDeconvRate,[3 2 1]);
+    
+    smoothSpan = 5;    
+    posTuningCurves = nanmean(data(:,:,evenTrials),3);
+    sortedROIs = vr.sortROIs(posTuningCurves,subsetOfInterest,smoothSpan);
+   % sortedROIs = vr.sortROIs(posTuningCurves); %,subsetOfInterest,smoothSpan);
+    nSortedROIs = numel(sortedROIs);
+    
+ 
+
+% Define matrices for subplots 
+if sortMat == 1
+    trials = oddTrials;
+else
+    trials = sData.trials.contextsMeta(1).trials;
+end
+M1 = nanmean(data(sortedROIs,:,trials),3);
+
+if sortMat == 2
+    trials = oddTrials;
+else
+    trials = sData.trials.contextsMeta(2).trials;
+end
+M2 = nanmean(data(sortedROIs,:,trials),3);
+
+trials = sData.trials.contextsMeta(3).trials;
+M3 = nanmean(data(sortedROIs,:,trials),3);
+
+trials = sData.trials.contextsMeta(4).trials;
+M4 = nanmean(data(sortedROIs,:,trials),3);
+
+    
+    
+%{    
+    data = permute(sData.imdata(fov).binnedRoisDff,[3 2 1]);
+    % data = permute(sData.imdata(fov).binnedRoisDeconvRate,[3 2 1]);
+    
+    smoothSpan = 5;    
+    sortedROIs = vr.sortROIs(nanmean(data(:,:,complementerTrials),3),subsetOfInterest,smoothSpan);
+    nSortedROIs = numel(sortedROIs);
+    
+ 
+
+% Define matrices for subplots 
+trials = sData.trials.contextsMeta(1).trials;
+% trials = ctrlTrials;
+M1 = normalize(nanmean(data(sortedROIs,:,trials),3),2);
+
+trials = sData.trials.contextsMeta(2).trials;
+% trials = ctrlTrials;
+M2 = normalize(nanmean(data(sortedROIs,:,trials),3),2);
+
+trials = sData.trials.contextsMeta(3).trials;
+M3 = normalize(nanmean(data(sortedROIs,:,trials),3),2);
+
+trials = sData.trials.contextsMeta(4).trials;
+M4 = normalize(nanmean(data(sortedROIs,:,trials),3),2);
+%}
+
+binNumber = sData.behavior.trialMatrices.meta.binNumber;
+binSize = sData.behavior.trialMatrices.meta.binSize;
+rewardZones = [];
+
+for context = 1:1:length(sData.trials.contextsMeta)
+rew = mean(sData.behavior.trialMatrices.rewardInBin(sData.trials.contextsMeta(context).trials,:));
+rew(isnan(rew)) = 0;
+rewardZ = sData.stats.sessionAvs(1).plotXAxis(find(rew));
+
+rewardZones(context,1) = rewardZ(1); 
+rewardZones(context,2) = rewardZ(find(diff(discretize(rewardZ,2)))+1); 
+
+
+end
+rewardZones = rewardZones - binSize;
+
+
+corridorLength = binNumber*binSize;
+viewDistance = 50;
+
+rewardZones(rewardZones==0) = corridorLength;
+
+Xax = sData.stats.sessionAvs(1).plotXAxis;
+cMin = -0.25;
+cMax = 2;
+% nSortedROIs = numel(sortedROIs);
+
+
+figure('Color','white','Position',[0 0 800 800])
+%set(0,'DefaultAxesFontSize',12);
+cLabel = 'DFF (Z-score)';
+% cLabel = 'Deconv. activity rate (Z-score)';
+
+subplot(2,2,1);
+
+imagesc(Xax,nSortedROIs:1,M1)
+hold on
+%rectangle('Position',[50,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[190,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(1,1),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(1,2),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone-viewDistance,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+% rectangle('Position',[rewardZone,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+20,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+80,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+
+%title('\fontsize{13}Light OFF trials')
+t = title('Block 1 - Context A');
+t.FontWeight = 'normal';
+t.FontSize = 14;
+c = colorbar;
+colormap(gca,jet);
+ax = gca;
+ax.TickDir = 'out';
+%xlabel('\fontsize{13}Track position (cm)');
+y = ylabel('\fontsize{13}sorted ROIs');
+%y.FontWeight = 'bold';
+c.Label.String = cLabel;
+%clabel('DFF (%)');
+caxis([cMin cMax]);
+
+
+subplot(2,2,2);
+
+imagesc(Xax,nSortedROIs:1,M2)
+hold on
+%rectangle('Position',[50,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[190,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(2,1),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(2,2),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');%rectangle('Position',[rewardZone-viewDistance,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+% rectangle('Position',[rewardZone,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+20,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+80,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+
+t = title('Block 2 - Context B');
+t.FontWeight = 'normal';
+t.FontSize = 14;
+c = colorbar;
+colormap(gca,jet);
+ax = gca;
+ax.TickDir = 'out';
+%xlabel('\fontsize{13}Track position (cm)');
+%ylabel('sorted ROIs');
+c.Label.String = cLabel;
+%clabel('DFF (%)');
+caxis([cMin cMax]);
+
+
+subplot(2,2,3);
+
+imagesc(Xax,nSortedROIs:1,M3)
+hold on
+%rectangle('Position',[50,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[190,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(3,1),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(3,2),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');%rectangle('Position',[rewardZone-viewDistance,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+% rectangle('Position',[rewardZone,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+20,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+80,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+
+t = title('Block 3 - Context A');
+t.FontWeight = 'normal';
+t.FontSize = 14;
+c = colorbar;
+colormap(gca,jet);
+ax = gca;
+ax.TickDir = 'out';
+xlabel('\fontsize{13}Track position (cm)');
+y = ylabel('\fontsize{13}sorted ROIs');
+c.Label.String = cLabel;
+%clabel('DFF (%)');
+caxis([cMin cMax]);
+
+
+subplot(2,2,4);
+
+imagesc(Xax,nSortedROIs:1,M4)
+hold on
+%rectangle('Position',[50,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[190,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(4,1),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(4,2),0,2,nSortedROIs],'FaceColor',[0 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone-viewDistance,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+% rectangle('Position',[rewardZone,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+20,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+%rectangle('Position',[rewardZone+80,0,2,nSortedROIs],'FaceColor',[1 1 1],'EdgeColor','none');
+
+t = title('Block 4 - Context B');
+t.FontSize = 14;
+t.FontWeight = 'normal';
+c = colorbar;
+colormap(gca,jet);
+ax = gca;
+ax.TickDir = 'out';
+xlabel('\fontsize{13}Track position (cm)');
+%y = ylabel('\fontsize{12}sorted ROIs');
+c.Label.String = cLabel;
+%clabel('DFF (%)');
+caxis([cMin cMax]);
+
+if sortMat == 1
+suptitle([sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation ' - Block 1 sorted']);
+elseif sortMat == 2
+suptitle([sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation ' - Block 2 sorted']);
+end
+    
+saveas(gcf,strcat(fullfile(sDataDir,[sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation '-sortedROIsDff_' num2str(sortMat) '_activeCells']),'.png')); % 'sortedROIsDff_2_allPlaceCells'
+
+% saveas(gcf,strcat(fullfile(sDataDir,'sortedROIsDffComplementer'),'.png'));
+% saveas(gcf,strcat(fullfile(sDataDir,'sortedROIsDffPlaceCells'),'.png'));
+
+% Auto-correlate
+
+% figure;
+% imagesc(Xax,Xax,corr(M1))
+
+
+end
+
+
+%{
+
+% Define matrices for subplots 
+trials = sDataFiles{fInd}.trials.contextsMeta(1).trials;
+A1 = nanmean(data(roiSubset,:,trials),3);
+velA1(:,f) = nanmean(velData(trials,:));
+lickA1(:,f) = nanmean(lickData(trials,:));
+
+trials = sDataFiles{fInd}.trials.contextsMeta(2).trials;
+B1 = nanmean(data(roiSubset,:,trials),3);
+velB1(:,f) = nanmean(velData(trials,:));
+lickB1(:,f) = nanmean(lickData(trials,:));
+
+trials = sDataFiles{fInd}.trials.contextsMeta(3).trials;
+A2 = nanmean(data(roiSubset,:,trials),3);
+velA2(:,f) = nanmean(velData(trials,:));
+lickA2(:,f) = nanmean(lickData(trials,:));
+
+trials = sDataFiles{fInd}.trials.contextsMeta(4).trials;
+B2 = nanmean(data(roiSubset,:,trials),3);
+velB2(:,f) = nanmean(velData(trials,:));
+lickB2(:,f) = nanmean(lickData(trials,:));
+
+trials = union(sDataFiles{fInd}.trials.contextsMeta(1).trials,sDataFiles{fInd}.trials.contextsMeta(3).trials);
+A = nanmean(data(roiSubset,:,trials),3);
+velA(:,f) = nanmean(velData(trials,:));
+lickA(:,f) = nanmean(lickData(trials,:));
+
+trials = union(sDataFiles{fInd}.trials.contextsMeta(2).trials,sDataFiles{fInd}.trials.contextsMeta(4).trials);
+B = nanmean(data(roiSubset,:,trials),3);
+velB(:,f) = nanmean(velData(trials,:));
+lickB(:,f) = nanmean(lickData(trials,:));
+
+
+A1A2 = corr(A1,A2); 
+B1B2 = corr(B1,B2);
+AB = corr(A,B);
+
+
+
+
+Xax = sDataFiles{fInd}.stats.sessionAvs(1).plotXAxis; 
+shift = floor(numel(Xax)/2);
+tempM = A1A2;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+shiftA1A2(:,:,f) = tempM;
+
+tempM = B1B2;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+shiftB1B2(:,:,f) = tempM;
+
+tempM = AB;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+shiftAB(:,:,f) = tempM;
+
+
+
+%}
+
+% Define matrices for subplots 
+trials = sData.trials.contextsMeta(1).trials;
+A1 = nanmean(data(sortedROIs,:,trials),3);
+
+trials = sData.trials.contextsMeta(2).trials;
+B1 = nanmean(data(sortedROIs,:,trials),3);
+
+trials = sData.trials.contextsMeta(3).trials;
+A2 = nanmean(data(sortedROIs,:,trials),3);
+
+trials = sData.trials.contextsMeta(4).trials;
+B2 = nanmean(data(sortedROIs,:,trials),3);
+
+trials = union(sData.trials.contextsMeta(1).trials,sData.trials.contextsMeta(3).trials);
+A = nanmean(data(sortedROIs,:,trials),3);
+%velA(:,f) = nanmean(velData(trials,:));
+%lickA(:,f) = nanmean(lickData(trials,:));
+
+trials = union(sData.trials.contextsMeta(2).trials,sData.trials.contextsMeta(4).trials);
+B = nanmean(data(sortedROIs,:,trials),3);
+%velB(:,f) = nanmean(velData(trials,:));
+%lickB(:,f) = nanmean(lickData(trials,:));
+
+
+A1A2 = corr(A1,A2); 
+B1B2 = corr(B1,B2);
+AB = corr(A,B);
+
+
+C1 = corr(A1,A2); % AA
+C2 = corr(B1,A2);
+C3 = corr(A1,B2);
+C4 = corr(B1,B2); % BB
+ 
+C5 = corr(A1,B1);
+C6 = corr(A2,B2);
+
+figure('Color','white','Position',[0 0 800 800])
+hold on
+
+subplot(2,2,1);
+imagesc(Xax,Xax,C1)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,180],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,180,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+% t = title('Block 1 - Context A'); t.FontSize = 15; t.FontWeight = 'normal';
+ylabel(['\fontsize{16}Block 3 - Context A' newline '\fontsize{13}Track position (cm)'])
+% xlabel('\fontsize{13}Track position (cm)')
+
+subplot(2,2,2);
+imagesc(Xax,Xax,C2)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,180],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,180,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+% t = title('Block 2 - Context B'); t.FontSize = 15; t.FontWeight = 'normal';
+% xlabel('\fontsize{13}Track position (cm)')
+
+subplot(2,2,3);
+imagesc(Xax,Xax,C3)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,178],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,178,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+ylabel(['\fontsize{16}Block 4 - Context B' newline '\fontsize{13}Track position (cm)'])
+xlabel(['\fontsize{13}Track position (cm)' newline '\fontsize{16}Block 1 - Context A'])
+
+subplot(2,2,4);
+imagesc(Xax,Xax,C4)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,178],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,178,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+xlabel(['\fontsize{13}Track position (cm)' newline '\fontsize{16}Block 2 - Context B'])
+
+suptitle([sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation newline ...
+    'Population vector cross correlation of trial blocks']);
+
+% suptitle('\fontsize{16}Population vector cross correlation of trial blocks');
+
+saveas(gcf,strcat(fullfile(sDataDir,[sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation '-crossCorrDff']),'.png'));
+
+
+
+
+
+figure('Color','white','Position',[0 0 300 900])
+hold on
+
+subplot(3,1,1);
+imagesc(Xax,Xax,C1)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,180],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,180,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+% t = title('Block 1 - Context A'); t.FontSize = 15; t.FontWeight = 'normal';
+ylabel(['\fontsize{14}fam X fam' newline '\fontsize{13}Track position (cm)'])
+xlabel('\fontsize{13}Track position (cm)')
+title(['\fontsize{14}' sData.imdata(fov).fovLocation newline])
+
+
+subplot(3,1,2);
+imagesc(Xax,Xax,C4)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,180],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,180,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+% t = title('Block 2 - Context B'); t.FontSize = 15; t.FontWeight = 'normal';
+ylabel(['\fontsize{14}new X new' newline '\fontsize{13}Track position (cm)'])
+xlabel('\fontsize{13}Track position (cm)')
+
+subplot(3,1,3);
+imagesc(Xax,Xax,AB)
+
+% identical context borders:
+rectangle('Position',[179.5,min(Xax),1,-min(Xax)+max(Xax)],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),179.5,-min(Xax)+max(Xax),1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+rectangle('Position',[89.5,min(Xax),1,178],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+rectangle('Position',[min(Xax),89.5,178,1],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none'); % home-box
+
+caxis([-0.3 1])
+axis([min(Xax)*1.015 max(Xax) min(Xax)*1.015 max(Xax)])
+ax = gca;
+ax.TickDir = 'out';
+ax.YDir = 'normal';
+ylabel(['\fontsize{14}fam X new' newline '\fontsize{13}Track position (cm)'])
+xlabel('\fontsize{13}Track position (cm)')
+
+%suptitle([sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation newline ...
+%    'Population vector cross correlation of trial blocks']);
+
+% suptitle('\fontsize{16}Population vector cross correlation of trial blocks');
+
+saveas(gcf,strcat(fullfile(sDataDir,[sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation '-crossCorrDff-3plots']),'.png'));
+
+
+
+
+
+
+shift = floor(numel(Xax)/2);
+tempM = C1;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+Cs1 = tempM;
+
+tempM = C2;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+Cs2 = tempM;
+
+tempM = C3;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+Cs3 = tempM;
+
+tempM = C4;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+Cs4 = tempM;
+
+tempM = C5;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+Cs5 = tempM;
+
+tempM = C6;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+Cs6 = tempM;
+
+tempM = A1A2;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+A1A2s = tempM;
+
+tempM = B1B2;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+B1B2s = tempM;
+
+tempM = AB;
+for i = 1:1:numel(Xax)
+    temp = [tempM(i,i:numel(Xax)) tempM(i,1:i-1)];
+    tempM(i,:) = [temp((shift+1):numel(Xax)) temp(1:shift)];
+end
+ABs = tempM;
+
+
+
+
+
+figure('Color','white','Position',[0 0 800 330])
+suptitle(['\fontsize{13}' sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation newline]);
+
+subplot(1,2,1)
+hold on
+rectangle('Position',[0,-0.39,180,1.39],'FaceColor',[0.95 0.95 0.95],'EdgeColor','none');
+rectangle('Position',[corridorLength-viewDistance,-0.39,10,1.39],'FaceColor',[0.995 0.995 0.995],'EdgeColor','none');
+rectangle('Position',[corridorLength-viewDistance+10,-0.39,10,1.39],'FaceColor',[0.985 0.985 0.985],'EdgeColor','none');
+rectangle('Position',[corridorLength-viewDistance+20,-0.39,10,1.39],'FaceColor',[0.975 0.975 0.975],'EdgeColor','none');
+rectangle('Position',[corridorLength-viewDistance+30,-0.39,10,1.39],'FaceColor',[0.965 0.965 0.965],'EdgeColor','none');
+rectangle('Position',[corridorLength-viewDistance+40,-0.39,10,1.39],'FaceColor',[0.955 0.955 0.955],'EdgeColor','none');
+
+%rectangle('Position',[49,-0.4,2,1.4],'FaceColor',[0.7 0.7 0.7],'EdgeColor','none');
+%rectangle('Position',[189,-0.4,2,1.4],'FaceColor',[0.7 0.7 0.7],'EdgeColor','none');
+rectangle('Position',[rewardZones(1,1)-2,0.95,4,0.05],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(1,2)-2,0.95,4,0.05],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(2,1)-2,0.9,4,0.05],'FaceColor',[0 1 1],'EdgeColor','none');
+rectangle('Position',[rewardZones(2,2)-2,0.9,4,0.05],'FaceColor',[0 1 1],'EdgeColor','none');
+
+%plot(Xax,[Cs1(:,shift) Cs4(:,shift) Cs2(:,shift) Cs3(:,shift) Cs5(:,shift) Cs6(:,shift)])
+plot(Xax,smoothdata([nanmean(A1A2s(:,shift-1:shift+1),2) nanmean(B1B2s(:,shift-1:shift+1),2) nanmean(ABs(:,shift-1:shift+1),2)],1,'gaussian',5))
+
+
+xlabel('\fontsize{13}Track position (cm)')
+ylabel('\fontsize{13}Corr. coefficient at diagonal')
+%legend('A1 X A2','B1 X A2','A1 X B2','B1 X B2')
+text(185,0.98,'Reward positions','color',[0 1 1])
+text(220,-0.3,'Identical')
+text(60,-0.3,'Unique')
+ax = gca;
+ax.TickDir = 'out';
+ylim([-0.4 1])
+xlim([-2 330])
+
+subplot(1,2,2)
+hold on
+bins = 91:160;
+%plot((-shift:shift-1)*2,nanmean(Cs1(bins,:)))
+%plot((-shift:shift-1)*2,nanmean(Cs4(bins,:)))
+%plot((-shift:shift-1)*2,nanmean(Cs2(bins,:)))
+%plot((-shift:shift-1)*2,nanmean(Cs3(bins,:)))
+%plot((-shift:shift-1)*2,nanmean(Cs5(bins,:)))
+%plot((-shift:shift-1)*2,nanmean(Cs6(bins,:)))
+plot((-shift:shift-1)*2,nanmean(A1A2s(bins,:)))
+plot((-shift:shift-1)*2,nanmean(B1B2s(bins,:)))
+plot((-shift:shift-1)*2,nanmean(ABs(bins,:)))
+text(-40,0.98,'Identical part','color',[0 0 0])
+%{
+subplot(1,2,2)
+hold on
+plot((-shift:shift)*2,nanmean(Cs1))
+plot((-shift:shift)*2,nanmean(Cs2))
+plot((-shift:shift)*2,nanmean(Cs3))
+plot((-shift:shift)*2,nanmean(Cs4))
+%}
+
+
+xlabel('\fontsize{13}Distance from diagonal (cm)')
+ylabel('\fontsize{13}Mean corr. coefficient')
+%legend('A1 X A2','B1 X B2','B1 X A2','A1 X B2','A1 X B1','A2 X B2')
+legend('A1 X A2','B1 X B2','A X B')
+
+ax = gca;
+ax.TickDir = 'out';
+
+
+saveas(gcf,strcat(fullfile(sDataDir,[sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation '-crossCorrCoefDiagonalDff']),'.png'));
+
+
+
+%% Plot mean correlation of the similar part
+figure('Color','white','Position',[0 0 400 300])
+hold on
+
+mymap = lines;
+bins = 5:45;
+plot((-shift:shift-1)*binSize,mean(A1A2s(bins,:)))
+%bins = 51:90;
+%plot((-shift:shift-1)*binSize,mean(A1A2s(bins,:)))
+plot((-shift:shift-1)*binSize,mean(B1B2s(bins,:)))
+
+xlabel('\fontsize{13}Distance from diagonal (cm)')
+ylabel('\fontsize{13}Mean corr. coefficient')
+legend('fam X fam','new X new')
+xlim([-shift shift-1]*binSize)
+title( [sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation newline 'Corr. repeated part (' num2str(bins(1)*binSize) ' to ' num2str(bins(end)*binSize) ' cm)' ])
+
+
+
+saveas(gcf,strcat(fullfile(sDataDir,['Fov' num2str(fov) '-' sData.imdata(fov).fovLocation '-crossCorrRepeatedPartDff']),'.png'));
+
+
+
+%%
+
+figure('Color','white','Position',[0 0 400 300])
+hold on
+
+mymap = lines;
+bins = 91:160;
+plotMeanStd((-shift:shift-1)*binSize, [Cs2(bins,:)', Cs3(bins,:)', Cs5(bins,:)', Cs6(bins,:)'],mymap(1,:),1)
+bins = 1:90;
+plotMeanStd((-shift:shift-1)*binSize, [Cs2(bins,:)', Cs3(bins,:)', Cs5(bins,:)', Cs6(bins,:)'],mymap(2,:),1)
+
+xlabel('\fontsize{13}Distance from diagonal (cm)')
+ylabel('\fontsize{13}Mean corr. coefficient')
+% legend('Identical visual context','Changing visual context')
+title( [sData.sessionInfo.sessionID(1:17) '-Fov' num2str(fov) '-' sData.imdata(fov).fovLocation newline 'Identical vs changing visual context'])
+
+saveas(gcf,strcat(fullfile(sDataDir,['Fov' num2str(fov) '-' sData.imdata(fov).fovLocation '-crossCorrIdenticalVsUniqueDff']),'.png'));
+
+
+
+
+%
+
+%% correlate sorting position
+
+%{
+smoothSpan = 5;  
+
+      
+[~, sortIndexes1] = vr.sortROIs(nanmean(data(:,:,sData.trials.contextsMeta(1).trials),3),subsetOfInterest,smoothSpan);
+[~, sortIndexes2] = vr.sortROIs(nanmean(data(:,:,sData.trials.contextsMeta(2).trials),3),subsetOfInterest,smoothSpan);
+
+[fitX, fitY, R2, P] = linFit(sortIndexes1,sortIndexes2); %[fitX, fitY, R2, P, a, b] = linFit(sortIndexes1,sortIndexes2);
+
+figure
+hold on
+plot(sortIndexes1,sortIndexes2,'.')
+plot(fitX, fitY,'-')
+%}
+
+
+
+
+
+end
+
+
+end
